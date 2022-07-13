@@ -25,10 +25,10 @@ class RetailerEnv(gym.Env):
         self.beta[:, 0] = np.random.randint(10, 15, num_states)
         self.beta[:, 1] = -10 * np.random.rand(num_states)
 
-        self.states = np.random.rand(num_states, 4)
+        self.states = np.random.rand(num_states, 5)
 
-        self.history = [[], []] #store quantity and reward
-        self.customer_feature = np.zeros(4) #customer features for the current state
+        self.history = [[], [], []] #store quantity, reward, and discount
+        self.customer_feature = np.zeros(5) #customer features for the current state
         self.start_state = start_state
         self.prev_state = start_state #total is k
         self.e_t = 0
@@ -43,22 +43,21 @@ class RetailerEnv(gym.Env):
         return observation
 
     def bernoulli_buy(self, s_t, action, e_t):
-        #TODO: states corresponding to alpha 5 is wrong
         denom = 1 + np.exp(self.alpha[s_t, 0] + self.alpha[s_t, 1] * self.states[s_t, 0] + self.alpha[s_t, 2] * self.states[s_t, 1]
                            + self.alpha[s_t, 3] * self.states[s_t, 2] + self.alpha[s_t, 4] * (self.states[s_t, 3]/self.states[s_t, 0]) ** 2
-                           + self.alpha[s_t, 5] * self.states[s_t, 3] + self.alpha[s_t, 6] * action[0] + self.alpha[s_t, 7] * e_t)
+                           + self.alpha[s_t, 5] * self.states[s_t, 4] + self.alpha[s_t, 6] * action[0] + self.alpha[s_t, 7] * e_t)
         buy_prob = 1/denom
         buy = np.random.choice(2, p=[1-buy_prob, buy_prob])
         return buy
 
     def demand(self, s_t, action, p_t):
-        #TODO: review again
+        #TODO: review
         mu = self.beta[s_t, 0] + self.beta[s_t, 1] * (1 - action[0]) * p_t
         minimum = 1
-        prob = np.zeros(100)
-        for i in range(100):
+        prob = np.zeros(90)
+        for i in range(90):
             prob[i] = self.truncated_poisson(mu, minimum, i)
-        quantity = np.random.choice(100, p=prob)
+        quantity = np.random.choice(90, p=prob)
         return quantity
 
     def truncated_poisson(self, mu, k, x):
@@ -77,6 +76,7 @@ class RetailerEnv(gym.Env):
         reward = self._reward(action, self.p_t, quantity)
         self.history[0] += [quantity]
         self.history[1] += [reward]
+        self.history[2] += [action[0]]
 
 
         self.customer_feature = self.update_features()
@@ -101,7 +101,8 @@ class RetailerEnv(gym.Env):
             days_til_last_purchase = len(self.history[0]) - np.max(not_zero)
         else:
             days_til_last_purchase = len(self.history[0])
-        return np.array([average_frequency, average_quantity, average_dollar, days_til_last_purchase])
+        average_discount = np.mean(self.history[2])
+        return np.array([average_frequency, average_quantity, average_dollar, days_til_last_purchase, average_discount])
 
     def feature_to_state(self):
         dist = []
