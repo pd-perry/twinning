@@ -22,7 +22,7 @@ class RetailerEnv(gym.Env):
         self.alpha[:, 6] = 10 * np.random.rand(num_states)
         self.alpha[:, 7] = np.random.rand(num_states)
 
-        self.beta[:, 0] = np.random.randint(10, 15, num_states)
+        self.beta[:, 0] = np.random.randint(100, 150, num_states)
         self.beta[:, 1] = -10 * np.random.rand(num_states)
 
         self.states = np.random.rand(num_states, 5)
@@ -43,9 +43,10 @@ class RetailerEnv(gym.Env):
         return observation
 
     def bernoulli_buy(self, s_t, action, e_t):
-        denom = 1 + np.exp(self.alpha[s_t, 0] + self.alpha[s_t, 1] * self.states[s_t, 0] + self.alpha[s_t, 2] * self.states[s_t, 1]
-                           + self.alpha[s_t, 3] * self.states[s_t, 2] + self.alpha[s_t, 4] * (self.states[s_t, 3]/self.states[s_t, 0]) ** 2
-                           + self.alpha[s_t, 5] * self.states[s_t, 4] + self.alpha[s_t, 6] * action[0] + self.alpha[s_t, 7] * e_t)
+        l = self.alpha[s_t, 0] + self.alpha[s_t, 1] * self.states[s_t, 0] + self.alpha[s_t, 2] * self.states[s_t, 1] \
+            + self.alpha[s_t, 3] * self.states[s_t, 2] + self.alpha[s_t, 4] * (self.states[s_t, 3]/self.states[s_t, 0]) ** 2 \
+            + self.alpha[s_t, 5] * self.states[s_t, 4] + self.alpha[s_t, 6] * action[0] + self.alpha[s_t, 7] * e_t
+        denom = 1 + np.exp(-l)
         buy_prob = 1/denom
         buy = np.random.choice(2, p=[1-buy_prob, buy_prob])
         return buy
@@ -54,10 +55,15 @@ class RetailerEnv(gym.Env):
         #TODO: review
         mu = self.beta[s_t, 0] + self.beta[s_t, 1] * (1 - action[0]) * p_t
         minimum = 1
-        prob = np.zeros(90)
-        for i in range(90):
+        prob = np.zeros(1000)
+        i = 0
+        while np.sum(prob) < 1:
             prob[i] = self.truncated_poisson(mu, minimum, i)
-        quantity = np.random.choice(90, p=prob)
+            i += 1
+        prob = prob[prob != 0]
+        prob = prob[~np.isnan(prob)]
+        prob = prob/np.sum(prob) #normalize
+        quantity = np.random.choice(len(prob), p=prob)
         return quantity
 
     def truncated_poisson(self, mu, k, x):
@@ -128,6 +134,6 @@ class RetailerEnv(gym.Env):
 env = RetailerEnv(9, 0)
 timestep = env.reset()
 for i in range(10):
-    action = [0.9, 2, 0, 0]
+    action = [0.6, 1, 0, 0]
     timestep = env.step(action)
     print(timestep, env.customer_feature, env.prev_state)
